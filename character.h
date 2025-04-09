@@ -33,9 +33,7 @@ class Character {
         warrior.setStat("Strength", 16);
         warrior.addToInventory("Longsword");
 
-        std::cout << "warrior inv count: " << warrior.getInventoryCount() << '\n';
-
-        warrior.equip("Weapon", "Longsword");
+        warrior.equip("Longsword", "Weapon");
 
         return warrior;
     }
@@ -45,9 +43,8 @@ class Character {
         mage.setStat("Intelligence", 16);
         mage.addToInventory("Staff");
 
-        std::cout << "mage inv count: " << mage.getInventoryCount() << '\n';
 
-        mage.equip("Weapon", "Staff");
+        mage.equip("Staff", "Weapon");
 
         return mage;
     }
@@ -57,9 +54,7 @@ class Character {
         rogue.setStat("Dexterity", 16);
         rogue.addToInventory("Dagger");
 
-        std::cout << "rogue inv count: " << rogue.getInventoryCount() << '\n';
-
-        rogue.equip("Weapon", "Dagger");
+        rogue.equip("Dagger", "Weapon");
 
         return rogue;
     }
@@ -132,8 +127,6 @@ class Character {
 
     void addToInventory(std::string item) {
         inventory[item] = 1;
-
-        std::cout << "inventory count: " << item << ": " << inventory[item] << '\n'; 
     }
 
     bool hasItem(std::string item) {
