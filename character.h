@@ -5,6 +5,11 @@
 #include <iostream>
 #include <functional>
 
+struct CriticalHitSettings {
+    double rate;
+    double modifier;
+};
+
 class Character {
    private:
     std::string name{};
@@ -23,6 +28,19 @@ class Character {
     std::map<std::string, int> weaponDamageLookup {};
     // ability : effect
     std::map<std::string, std::function<bool(Character&, Character&)>> abilityLookup {};
+    // status : turns
+    std::map<std::string, int> statusEffects {}; 
+
+    CriticalHitSettings critSettings {};
+
+
+
+    // status : effect
+    std::map<std::string, std::function<void(Character&)>> statusLookup = {
+        { "Poison", [](Character& character) {
+            character.takeDamage(5);
+        }}
+    };
 
    public:
     Character(std::string name, int health)
@@ -125,16 +143,34 @@ class Character {
         return gear[slot];
     }
 
-    void addToInventory(std::string item) {
-        inventory[item] = 1;
+    void addToInventory(std::string item, int count = 1) {
+        // check if item already exists
+        if (inventory.count(item) != 0) {
+            inventory[item] += count;
+        } else {
+            inventory[item] = count;
+        }
     }
 
     bool hasItem(std::string item) {
         return inventory.count(item) > 0;
     }
 
+    int getItemCount(std::string item) {
+        return inventory[item];
+    }
+
     int getInventoryCount() {
         return static_cast<int>(inventory.size());
+    }
+
+    bool useItem(std::string item, int count) {
+        if (inventory.count(item) != 0 && inventory[item] >=  count) {
+            inventory[item] -= count;
+            return true;
+        }
+
+        return false;
     }
 
     // combat
@@ -143,11 +179,27 @@ class Character {
         int weaponDamage = weaponDamageLookup[gear["Weapon"]];
         int damage = stats["Strength"] + weaponDamage;
 
-        character.takeDamage(damage);
+        int targetNumber = 100 - int (critSettings.rate * 100);
+        int rolled = (rand() % 100) + 1;
+
+        if (rolled > targetNumber) {
+            int modifiedDamage = (int) (damage * critSettings.modifier);
+            character.takeDamage(modifiedDamage);
+        } else {
+            character.takeDamage(damage);
+        }
     }
 
     void setWeaponDamage(std::string weapon, int damage) {
         weaponDamageLookup[weapon] = damage;
+    }
+
+    void setCriticalRate(double critChance) {
+        critSettings.rate = critChance;
+    }
+
+    void setCriticalMultiplier(double damageMultiplier) {
+        critSettings.modifier = damageMultiplier;
     }
 
     // abilities
@@ -162,4 +214,31 @@ class Character {
 
         return abilityLookup[ability](*this, target);
     }
+
+    // status effects
+    void applyStatusEffect(std::string status, int turnCount) {
+        statusEffects[status] = turnCount;
+    }
+
+    bool hasStatusEffect(std::string status) {
+        return statusEffects.count(status) != 0;
+    }
+
+    // turns
+    void processTurn() {
+        // iterate over each status effect, do the associated lambda, then take off a turn
+        for (auto it = statusEffects.begin(); it != statusEffects.end(); ++it) {
+            // look up the status effect
+            statusLookup[it->first](*this);
+
+            statusEffects[it->first] -= 1;
+
+            if (it->second == 0) {
+                statusEffects.erase(it->first);
+            }
+        }
+    }
+
+    //
 };
+

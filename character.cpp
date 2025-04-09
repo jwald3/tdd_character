@@ -266,6 +266,87 @@ bool testCharacterClasses() {
            warriorWeapon && mageWeapon && rogueWeapon;
 }
 
+// Test for status effects
+bool testStatusEffects() {
+    Character target("Target", 100);
+    
+    // Apply a poison effect
+    target.applyStatusEffect("Poison", 3); // Apply poison for 3 turns
+    bool hasPoison = ASSERT_EQ(true, target.hasStatusEffect("Poison"));
+    
+    // Poison should deal damage each turn
+    target.processTurn();
+    bool poisonDamage1 = ASSERT_EQ(95, target.getHealth()); // 5 damage per turn
+    
+    target.processTurn();
+    bool poisonDamage2 = ASSERT_EQ(90, target.getHealth());
+    
+    // Last turn of poison
+    target.processTurn(); 
+    bool poisonDamage3 = ASSERT_EQ(85, target.getHealth());
+    
+    // Poison should expire after 3 turns
+    bool poisonExpired = ASSERT_EQ(false, target.hasStatusEffect("Poison"));
+    
+    // No more damage on next turn
+    target.processTurn();
+    bool noDamageAfterExpiry = ASSERT_EQ(85, target.getHealth());
+    
+    return hasPoison && poisonDamage1 && poisonDamage2 && 
+           poisonDamage3 && poisonExpired && noDamageAfterExpiry;
+}
+
+// Test for combat modifiers (like critical hits)
+bool testCombatModifiers() {
+    Character attacker("Attacker", 100);
+    Character defender("Defender", 100);
+    
+    attacker.setStat("Strength", 10);
+    
+    // Set critical hit rate to 100% for testing
+    attacker.setCriticalRate(1.0); // 100% chance
+    attacker.setCriticalMultiplier(2.0); // Double damage
+    
+    attacker.attack(defender);
+    // Normal damage would be 10, with crit it's 20
+    bool criticalHit = ASSERT_EQ(80, defender.getHealth());
+    
+    // Reset crit rate to 0
+    attacker.setCriticalRate(0.0);
+    attacker.attack(defender);
+    // Now normal damage of 10
+    bool normalHit = ASSERT_EQ(70, defender.getHealth());
+    
+    return criticalHit && normalHit;
+}
+
+// Test for stackable inventory items
+bool testStackableInventory() {
+    Character character("Adventurer", 100);
+    
+    // Add single items
+    character.addToInventory("Gold Coin", 5);
+    character.addToInventory("Health Potion", 2);
+    
+    bool hasGoldCoins = ASSERT_EQ(5, character.getItemCount("Gold Coin"));
+    bool hasHealthPotions = ASSERT_EQ(2, character.getItemCount("Health Potion"));
+    
+    // Add more of the same item
+    character.addToInventory("Gold Coin", 10);
+    bool stackedGoldCoins = ASSERT_EQ(15, character.getItemCount("Gold Coin"));
+    
+    // Use items from stack
+    character.useItem("Health Potion", 1);
+    bool usedPotion = ASSERT_EQ(1, character.getItemCount("Health Potion"));
+    
+    // Try to use more than available
+    bool cantUseMore = !character.useItem("Health Potion", 2); // Should return false
+    bool stillHasOne = ASSERT_EQ(1, character.getItemCount("Health Potion"));
+    
+    return hasGoldCoins && hasHealthPotions && stackedGoldCoins && 
+           usedPotion && cantUseMore && stillHasOne;
+}
+
 int main() {
     TestRunner::runTest("CreateCharacterWithNameAndHealth",
                         testCreateCharacterWithNameAndHealth);
@@ -288,6 +369,10 @@ int main() {
     TestRunner::runTest("CharacterSpecialAbilities",
                         testCharacterSpecialAbilities);
     TestRunner::runTest("CharacterClasses", testCharacterClasses);
+
+    TestRunner::runTest("StatusEffects", testStatusEffects);
+    TestRunner::runTest("CombatModifiers", testCombatModifiers);
+    TestRunner::runTest("StackableInventory", testStackableInventory);
 
     return 0;
 }
