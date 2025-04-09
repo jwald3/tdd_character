@@ -3,12 +3,16 @@
 #include <map>
 #include <stdexcept>
 #include <iostream>
+#include <functional>
 
 class Character {
    private:
     std::string name{};
     int maxHealth{};
     int currentHealth{};
+    int experience {};
+    int level {};
+
     // stat : value
     std::map<std::string, int> stats {};
     // item : 1
@@ -18,19 +22,45 @@ class Character {
     // weapon name : damage
     std::map<std::string, int> weaponDamageLookup {};
 
-
    public:
     Character(std::string name, int health)
         : name{name}, maxHealth{health}, currentHealth{health} {};
+
+    static Character createWarrior(const std::string& name) {
+        return Character(name, 100);
+    }
+
+    static Character createMage(const std::string& name) {
+        return Character(name, 100);
+    }
+
+    static Character createRogue(const std::string& name) {
+        return Character(name, 100);
+    }
 
     void setName(std::string value) { name = value; }
 
     std::string getName() { return name; }
 
+    // level
+    int getLevel() {
+        return level;
+    }
+
+    void gainExperience(int exp) {
+        experience += exp;
+    }
+
+    int getExperience() {
+        return experience;
+    }
+
     // hp system
     void setHealth(int value) { maxHealth = value; }
 
     int getHealth() { return currentHealth; }
+
+    int getMaxHealth() { return maxHealth; }
 
     void takeDamage(int value) {
         currentHealth = std::max(0, currentHealth - value);
@@ -85,12 +115,19 @@ class Character {
         int weaponDamage = weaponDamageLookup[gear["Weapon"]];
         int damage = stats["Strength"] + weaponDamage;
 
-        std::cout << "Weapon damage: " << weaponDamage << " strength " << stats["Strength"] << " damage " << damage << '\n';
-
         character.takeDamage(damage);
     }
 
     void setWeaponDamage(std::string weapon, int damage) {
         weaponDamageLookup[weapon] = damage;
+    }
+
+    // abilities
+    void learnAbility(std::string ability, std::function<bool(Character&, Character&)> abilityFunction) {
+
+    }
+
+    bool useAbility(std::string ability, Character& target) {
+        return true;
     }
 };
