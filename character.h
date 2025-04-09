@@ -21,21 +21,35 @@ class Character {
     std::map<std::string, std::string> gear {};
     // weapon name : damage
     std::map<std::string, int> weaponDamageLookup {};
+    // ability : effect
+    std::map<std::string, std::function<bool(Character&, Character&)>> abilityLookup {};
 
    public:
     Character(std::string name, int health)
         : name{name}, maxHealth{health}, currentHealth{health} {};
 
     static Character createWarrior(const std::string& name) {
-        return Character(name, 100);
+        Character warrior = Character(name, 100);
+        warrior.setStat("Strength", 16);
+        warrior.equip("Weapon", "Longsword");
+
+        return warrior;
     }
 
     static Character createMage(const std::string& name) {
-        return Character(name, 100);
+        Character mage = Character(name, 100);
+        mage.setStat("Intelligence", 16);
+        mage.equip("Weapon", "Staff");
+
+        return mage;
     }
 
     static Character createRogue(const std::string& name) {
-        return Character(name, 100);
+        Character rogue = Character(name, 100);
+        rogue.setStat("Dexterity", 16);
+        rogue.equip("Weapon", "Dagger")
+
+        return rogue;
     }
 
     void setName(std::string value) { name = value; }
@@ -48,7 +62,10 @@ class Character {
     }
 
     void gainExperience(int exp) {
-        experience += exp;
+        int totalExperience = experience + exp;
+
+        level = totalExperience / 100 + 1;
+        maxHealth = (level - 1) * 10 + 100; 
     }
 
     int getExperience() {
@@ -124,10 +141,10 @@ class Character {
 
     // abilities
     void learnAbility(std::string ability, std::function<bool(Character&, Character&)> abilityFunction) {
-
+        abilityLookup[ability] = abilityFunction;
     }
 
     bool useAbility(std::string ability, Character& target) {
-        return true;
+        return abilityLookup[ability]
     }
 };
