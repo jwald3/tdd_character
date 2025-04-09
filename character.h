@@ -11,7 +11,7 @@ class Character {
     int maxHealth{};
     int currentHealth{};
     int experience {};
-    int level {};
+    int level { 1 };
 
     // stat : value
     std::map<std::string, int> stats {};
@@ -31,6 +31,10 @@ class Character {
     static Character createWarrior(const std::string& name) {
         Character warrior = Character(name, 100);
         warrior.setStat("Strength", 16);
+        warrior.addToInventory("Longsword");
+
+        std::cout << "warrior inv count: " << warrior.getInventoryCount() << '\n';
+
         warrior.equip("Weapon", "Longsword");
 
         return warrior;
@@ -39,6 +43,10 @@ class Character {
     static Character createMage(const std::string& name) {
         Character mage = Character(name, 100);
         mage.setStat("Intelligence", 16);
+        mage.addToInventory("Staff");
+
+        std::cout << "mage inv count: " << mage.getInventoryCount() << '\n';
+
         mage.equip("Weapon", "Staff");
 
         return mage;
@@ -47,7 +55,11 @@ class Character {
     static Character createRogue(const std::string& name) {
         Character rogue = Character(name, 100);
         rogue.setStat("Dexterity", 16);
-        rogue.equip("Weapon", "Dagger")
+        rogue.addToInventory("Dagger");
+
+        std::cout << "rogue inv count: " << rogue.getInventoryCount() << '\n';
+
+        rogue.equip("Weapon", "Dagger");
 
         return rogue;
     }
@@ -62,9 +74,11 @@ class Character {
     }
 
     void gainExperience(int exp) {
-        int totalExperience = experience + exp;
+        int totalExperience = experience += exp;
 
         level = totalExperience / 100 + 1;
+        experience = totalExperience - ((level - 1) * 100);
+
         maxHealth = (level - 1) * 10 + 100; 
     }
 
@@ -105,7 +119,9 @@ class Character {
 
     // items
     void equip(std::string item, std::string slot) {
-        if (inventory.count(item) == 0) throw std::domain_error("cannot equip items not in inventory");
+        if (inventory.find(item) == inventory.end()) {
+            throw std::domain_error("cannot equip items not in inventory");
+        }
 
         gear[slot] = item;
     }
@@ -116,6 +132,8 @@ class Character {
 
     void addToInventory(std::string item) {
         inventory[item] = 1;
+
+        std::cout << "inventory count: " << item << ": " << inventory[item] << '\n'; 
     }
 
     bool hasItem(std::string item) {
@@ -145,6 +163,10 @@ class Character {
     }
 
     bool useAbility(std::string ability, Character& target) {
-        return abilityLookup[ability]
+        if (abilityLookup.find(ability) == abilityLookup.end()) {
+            return false;
+        }
+
+        return abilityLookup[ability](*this, target);
     }
 };
