@@ -413,6 +413,79 @@ bool testCharacterSerialization() {
            goldCountPreserved && weaponPreserved;
 }
 
+bool testCompleteBattleScenario() {
+    // Create a party of adventurers
+    Party heroes("Heroes of Light");
+    
+    Character warrior = Character::createWarrior("Hector");
+    Character mage = Character::createMage("Lilith");
+    Character rogue = Character::createRogue("Garrett");
+    
+    // Give them some equipment and abilities
+    warrior.setWeaponDamage("Longsword", 15);
+    warrior.setStat("Strength", 20);
+    warrior.setCriticalRate(0.2);
+    warrior.setCriticalMultiplier(1.5);
+    
+    mage.setStat("Intelligence", 22);
+    mage.learnAbility("Fireball", [](Character& caster, Character& target) {
+        int damage = caster.getStat("Intelligence") * 2;
+        std::cout << "damage: " << damage << '\n';
+
+        target.takeDamage(damage);
+        return true;
+    });
+    mage.learnAbility("Heal", [](Character& caster, Character& target) {
+        int healing = caster.getStat("Intelligence");
+        target.heal(healing);
+        return true;
+    });
+    
+    rogue.setWeaponDamage("Dagger", 8);
+    rogue.setStat("Dexterity", 18);
+    rogue.learnAbility("Poison Strike", [](Character& caster, Character& target) {
+        target.takeDamage(caster.getStat("Dexterity"));
+        target.applyStatusEffect("Poison", 3);
+        return true;
+    });
+    
+    // Create enemy
+    Character boss("Dragon", 300);
+    boss.setStat("Strength", 25);
+    boss.learnAbility("Fire Breath", [](Character& caster, Character& target) {
+        target.takeDamage(30);
+        return true;
+    });
+    
+    // Battle simulation
+    // Round 1
+    warrior.attack(boss); // Warrior attacks
+    bool round1DamageToEnemy = ASSERT_EQ(300 - 35, boss.getHealth()); // Strength 20 + Weapon 15
+
+    boss.useAbility("Fire Breath", warrior); // Boss attacks warrior
+    bool round1DamageToHero = ASSERT_EQ(70, warrior.getHealth()); // 100 - 30
+    
+    // Round 2
+    mage.useAbility("Fireball", boss); // Mage casts fireball
+    bool round2DamageToEnemy = ASSERT_EQ(265 - 44, boss.getHealth()); // 235 - (Intelligence 22 * 2)
+    
+    rogue.useAbility("Poison Strike", boss); // Rogue uses poison strike
+    bool round2PoisonApplied = ASSERT_EQ(true, boss.hasStatusEffect("Poison"));
+    bool round2DamageFromPoison = ASSERT_EQ(221 - 18, boss.getHealth()); // 221 - Dexterity 18
+    
+    // Process turn (poison damage)
+    boss.processTurn();
+    bool round2PoisonEffect = ASSERT_EQ(203 - 5, boss.getHealth()); // 203 - 5 poison damage
+    
+    // Round 3
+    mage.useAbility("Heal", warrior); // Mage heals warrior
+    bool round3Healing = ASSERT_EQ(92, warrior.getHealth()); // 70 + 22
+    
+    return round1DamageToEnemy && round1DamageToHero && 
+           round2DamageToEnemy && round2PoisonApplied && round2DamageFromPoison && 
+           round2PoisonEffect && round3Healing;
+}
+
 int main() {
     TestRunner::runTest("CreateCharacterWithNameAndHealth",
                         testCreateCharacterWithNameAndHealth);
@@ -442,6 +515,8 @@ int main() {
 
     TestRunner::runTest("PartyMechanics", testPartyMechanics);
     TestRunner::runTest("CharacterSerialization", testCharacterSerialization);
+
+    TestRunner::runTest("CompleteBattleScenario", testCompleteBattleScenario);
 
     return 0;
 }
