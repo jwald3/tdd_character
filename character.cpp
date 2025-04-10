@@ -347,6 +347,72 @@ bool testStackableInventory() {
            usedPotion && cantUseMore && stillHasOne;
 }
 
+// Test for character joining/leaving parties
+bool testPartyMechanics() {
+    // Create a party
+    Party adventuringParty("Heroes of the Realm");
+    
+    // Create some characters
+    Character warrior = Character::createWarrior("Thordak");
+    Character healer = Character::createMage("Ellaria");
+    Character scout = Character::createRogue("Vex");
+    
+    // Add characters to party
+    adventuringParty.addMember(warrior);
+    adventuringParty.addMember(healer);
+    
+    bool correctSize = ASSERT_EQ(2, adventuringParty.getMemberCount());
+    bool containsWarrior = ASSERT_EQ(true, adventuringParty.hasMember("Thordak"));
+    bool containsHealer = ASSERT_EQ(true, adventuringParty.hasMember("Ellaria"));
+    bool doesNotContainScout = ASSERT_EQ(false, adventuringParty.hasMember("Vex"));
+    
+    // Add the scout later
+    adventuringParty.addMember(scout);
+    bool scoutAdded = ASSERT_EQ(true, adventuringParty.hasMember("Vex"));
+    bool sizeAfterAddition = ASSERT_EQ(3, adventuringParty.getMemberCount());
+    
+    // Remove a member
+    adventuringParty.removeMember("Ellaria");
+    bool healerRemoved = ASSERT_EQ(false, adventuringParty.hasMember("Ellaria"));
+    bool sizeAfterRemoval = ASSERT_EQ(2, adventuringParty.getMemberCount());
+    
+    return correctSize && containsWarrior && containsHealer && doesNotContainScout && 
+           scoutAdded && sizeAfterAddition && healerRemoved && sizeAfterRemoval;
+}
+
+// Test for serialization and deserialization (save/load)
+bool testCharacterSerialization() {
+    // Create a character with various properties
+    Character original = Character::createWarrior("Goliath");
+    original.setStat("Strength", 20);
+    original.setStat("Constitution", 16);
+    original.addToInventory("Health Potion", 3);
+    original.addToInventory("Gold", 150);
+    original.setWeaponDamage("Longsword", 12);
+    original.gainExperience(250); // Level 3, 50 XP
+    
+    // Serialize to string
+    std::string serialized = original.serialize();
+    
+    // Create a new character from serialized string
+    Character loaded = Character::deserialize(serialized);
+    
+    // Verify all properties were preserved
+    bool namePreserved = ASSERT_EQ("Goliath", loaded.getName());
+    bool levelPreserved = ASSERT_EQ(3, loaded.getLevel());
+    bool xpPreserved = ASSERT_EQ(50, loaded.getExperience());
+    bool strengthPreserved = ASSERT_EQ(20, loaded.getStat("Strength"));
+    bool constitutionPreserved = ASSERT_EQ(16, loaded.getStat("Constitution"));
+    bool inventoryCountPreserved = ASSERT_EQ(3, loaded.getInventoryCount());
+    bool potionCountPreserved = ASSERT_EQ(3, loaded.getItemCount("Health Potion"));
+    bool goldCountPreserved = ASSERT_EQ(150, loaded.getItemCount("Gold"));
+    bool weaponPreserved = ASSERT_EQ("Longsword", loaded.getEquipped("Weapon"));
+    
+    return namePreserved && levelPreserved && xpPreserved && strengthPreserved && 
+           constitutionPreserved && inventoryCountPreserved && potionCountPreserved && 
+           goldCountPreserved && weaponPreserved;
+}
+
 int main() {
     TestRunner::runTest("CreateCharacterWithNameAndHealth",
                         testCreateCharacterWithNameAndHealth);
@@ -373,6 +439,9 @@ int main() {
     TestRunner::runTest("StatusEffects", testStatusEffects);
     TestRunner::runTest("CombatModifiers", testCombatModifiers);
     TestRunner::runTest("StackableInventory", testStackableInventory);
+
+    TestRunner::runTest("PartyMechanics", testPartyMechanics);
+    TestRunner::runTest("CharacterSerialization", testCharacterSerialization);
 
     return 0;
 }

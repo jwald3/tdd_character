@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <functional>
+#include <sstream>
 
 struct CriticalHitSettings {
     double rate;
@@ -34,7 +35,6 @@ class Character {
     CriticalHitSettings critSettings {};
 
 
-
     // status : effect
     std::map<std::string, std::function<void(Character&)>> statusLookup = {
         { "Poison", [](Character& character) {
@@ -43,6 +43,8 @@ class Character {
     };
 
    public:
+    Character() {};
+
     Character(std::string name, int health)
         : name{name}, maxHealth{health}, currentHealth{health} {};
 
@@ -239,6 +241,123 @@ class Character {
         }
     }
 
-    //
+    // serialization
+    std::string serialize() const {
+        std::stringstream ss;
+        ss << name << '\n';
+        ss << level << '\n';
+        ss << experience << '\n';
+
+        ss << stats.size() << '\n';
+
+        for (const auto& pair : stats) {
+            ss << pair.first << '\n';
+            ss << pair.second << '\n';
+        }
+
+        ss << inventory.size() << '\n';
+
+        for (const auto& pair : inventory) {
+            ss << pair.first << '\n';
+            ss << pair.second << '\n';
+        }
+
+        ss << gear.size() << '\n';
+
+        for (const auto& pair : gear) {
+            ss << pair.first << '\n';
+            ss << pair.second << '\n';
+        }
+
+
+        return ss.str();
+    }
+
+    static Character deserialize(const std::string& data) {
+        std::stringstream ss(data);
+        Character ch {};
+
+        std::getline(ss, ch.name);
+        
+        ss >> ch.level;
+        ss.ignore();
+
+        ss >> ch.experience;
+        ss.ignore();
+
+
+        size_t statsMapSize;
+        ss >> statsMapSize;
+        ss.ignore();
+
+        for (size_t i = 0; i < statsMapSize; i++) {
+            std::string key;
+            int value;
+
+            std::getline(ss, key);
+            ss >> value;
+            ss.ignore();
+
+            ch.stats[key] = value;
+        }
+
+        size_t inventoryMapSize;
+        ss >> inventoryMapSize;
+        ss.ignore();
+
+        for (size_t i = 0; i < inventoryMapSize; i++) {
+            std::string key;
+            int value;
+
+            std::getline(ss, key);
+            ss >> value;
+            ss.ignore();
+
+            ch.inventory[key] = value;
+        }
+
+        size_t gearMapSize;
+        ss >> gearMapSize;
+        ss.ignore();
+
+        for (size_t i = 0; i < gearMapSize; i++) {
+            std::string key;
+            std::string value;
+
+            std::getline(ss, key);
+            std::getline(ss, value);
+            ss.ignore();
+
+            ch.gear[key] = value;
+        }
+
+
+        return ch;
+    }
 };
 
+
+class Party {
+    private:
+        std::string partyName {};
+        std::map<std::string, Character> partyMembers {};
+
+    public:
+        Party(std::string name) : partyName{ name } {};
+
+        void addMember(Character c) {
+            partyMembers.insert({ c.getName(), c });
+        }
+
+        int getMemberCount() {
+            return static_cast<int>(partyMembers.size());
+        }
+
+        bool hasMember(std::string memberName) {
+            return partyMembers.count(memberName) != 0;
+        }
+
+        void removeMember(std::string memberName) {
+            partyMembers.erase(memberName);
+        }
+};
