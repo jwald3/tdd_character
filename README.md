@@ -80,7 +80,3 @@ Potential areas for expansion:
 - Quest system integration
 - Save/load game state
 - Network multiplayer support
-
-## License
-
-[Add your chosen license here] 
