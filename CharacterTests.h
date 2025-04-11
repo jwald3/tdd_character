@@ -1,0 +1,24 @@
+#pragma once
+#include "character.h"
+#include "TestRunner.h"
+
+bool testCreateCharacterWithNameAndHealth();
+bool testCharacterTakesDamage();
+bool testHealthCannotBeBelowZero();
+bool testCharacterCanHeal();
+bool testHealthCannotExceedMaximum();
+bool testCharacterCanAddItemToInventory();
+bool testCharacterHasStats();
+bool testCharacterCanEquipItems();
+bool testCharacterCanAttackOthers();
+bool testWeaponDamageModifiers();
+bool testCharacterDeath();
+bool testCharacterExperienceAndLeveling();
+bool testCharacterSpecialAbilities();
+bool testCharacterClasses();
+bool testStatusEffects();
+bool testCombatModifiers();
+bool testStackableInventory();
+bool testPartyMechanics();
+bool testCharacterSerialization();
+bool testCompleteBattleScenario();

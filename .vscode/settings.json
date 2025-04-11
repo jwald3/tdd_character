@@ -49,6 +49,7 @@
         "numbers": "cpp",
         "ostream": "cpp",
         "span": "cpp",
+        "sstream": "cpp",
         "stdexcept": "cpp",
         "streambuf": "cpp",
         "text_encoding": "cpp",

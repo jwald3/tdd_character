@@ -1,522 +1,279 @@
-#include "character.h"
-
+#include <cmath>
 #include <functional>
 #include <iostream>
+#include <map>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 
-class TestRunner {
-   public:
-    static void runTest(const std::string& testName,
-                        std::function<bool()> test) {
-        std::cout << "Running test: " << testName << "... ";
-        if (test()) {
-            std::cout << "PASSED" << std::endl;
-        } else {
-            std::cout << "FAILED" << std::endl;
+#include "CombatSystem.h"
+#include "StatusEffect.h"
+
+Character::Character() {}
+Character::Character(std::string name, int health)
+    : name{name}, maxHealth{health}, currentHealth{health} {}
+
+Character Character::createWarrior(const std::string& name) {
+    Character warrior = Character(name, 100);
+    warrior.setStat("Strength", 16);
+    warrior.addToInventory("Longsword");
+
+    warrior.equip("Longsword", "Weapon");
+
+    return warrior;
+}
+
+Character Character::createMage(const std::string& name) {
+    Character mage = Character(name, 100);
+    mage.setStat("Intelligence", 16);
+    mage.addToInventory("Staff");
+
+    mage.equip("Staff", "Weapon");
+
+    return mage;
+}
+
+Character Character::createRogue(const std::string& name) {
+    Character rogue = Character(name, 100);
+    rogue.setStat("Dexterity", 16);
+    rogue.addToInventory("Dagger");
+
+    rogue.equip("Dagger", "Weapon");
+
+    return rogue;
+}
+
+void Character::setName(std::string value) { name = value; }
+
+std::string Character::getName() { return name; }
+
+// level
+int Character::getLevel() { return level; }
+
+void Character::gainExperience(int exp) {
+    int totalExperience = experience += exp;
+
+    level = totalExperience / 100 + 1;
+    experience = totalExperience - ((level - 1) * 100);
+
+    maxHealth = (level - 1) * 10 + 100;
+}
+
+int Character::getExperience() { return experience; }
+
+// hp system
+void Character::setHealth(int value) { maxHealth = value; }
+
+int Character::getHealth() { return currentHealth; }
+
+int Character::getMaxHealth() { return maxHealth; }
+
+void Character::takeDamage(int value) {
+    currentHealth = std::max(0, currentHealth - value);
+}
+void Character::heal(int value) {
+    if (currentHealth + value > maxHealth) {
+        currentHealth = maxHealth;
+    } else {
+        currentHealth += value;
+    }
+}
+
+bool Character::isDead() { return currentHealth == 0; }
+
+// stats
+void Character::setStat(std::string stat, int value) { stats[stat] = value; }
+
+int Character::getStat(std::string stat) { return stats[stat]; }
+
+// items
+void Character::equip(std::string item, std::string slot) {
+    if (inventory.find(item) == inventory.end()) {
+        throw std::domain_error("cannot equip items not in inventory");
+    }
+
+    gear[slot] = item;
+}
+
+std::string Character::getEquipped(std::string slot) { return gear[slot]; }
+
+void Character::addToInventory(std::string item, int count) {
+    // check if item already exists
+    if (inventory.count(item) != 0) {
+        inventory[item] += count;
+    } else {
+        inventory[item] = count;
+    }
+}
+
+bool Character::hasItem(std::string item) { return inventory.count(item) > 0; }
+
+int Character::getItemCount(std::string item) { return inventory[item]; }
+
+int Character::getInventoryCount() { return static_cast<int>(inventory.size()); }
+
+bool Character::useItem(std::string item, int count) {
+    if (inventory.count(item) != 0 && inventory[item] >= count) {
+        inventory[item] -= count;
+        return true;
+    }
+
+    return false;
+}
+
+// combat
+void Character::attack(Character& character) {
+    // damage = character.stats.strength + weapon.damage
+    int weaponDamage = weaponDamageLookup[gear["Weapon"]];
+    int damage = stats["Strength"] + weaponDamage;
+
+    int targetNumber = 100 - int(critSettings.rate * 100);
+    int rolled = (rand() % 100) + 1;
+
+    if (rolled > targetNumber) {
+        int modifiedDamage = (int)(damage * critSettings.modifier);
+        character.takeDamage(modifiedDamage);
+    } else {
+        character.takeDamage(damage);
+    }
+}
+
+void Character::setWeaponDamage(std::string weapon, int damage) {
+    weaponDamageLookup[weapon] = damage;
+}
+
+void Character::setCriticalRate(double critChance) { critSettings.rate = critChance; }
+
+void Character::setCriticalMultiplier(double damageMultiplier) {
+    critSettings.modifier = damageMultiplier;
+}
+
+// abilities
+void Character::learnAbility(std::string ability,
+                  std::function<bool(Character&, Character&)> abilityFunction) {
+    abilityLookup[ability] = abilityFunction;
+}
+
+bool Character::useAbility(std::string ability, Character& target) {
+    if (abilityLookup.find(ability) == abilityLookup.end()) {
+        return false;
+    }
+
+    return abilityLookup[ability](*this, target);
+}
+
+// status effects
+void Character::applyStatusEffect(std::string status, int turnCount) {
+    statusEffects[status] = turnCount;
+}
+
+bool Character::hasStatusEffect(std::string status) {
+    return statusEffects.count(status) != 0;
+}
+
+// turns
+void Character::processTurn() {
+    // iterate over each status effect, do the associated lambda, then take off
+    // a turn
+    for (auto it = statusEffects.begin(); it != statusEffects.end(); ++it) {
+        // look up the status effect
+        StatusEffectManager::getStatusEffects()[it->first](*this);
+
+        statusEffects[it->first] -= 1;
+
+        if (it->second == 0) {
+            statusEffects.erase(it->first);
         }
     }
-};
-
-#define ASSERT_EQ(expected, actual)                                           \
-    ((expected) == (actual)) ? true                                           \
-                             : (std::cout << "Assertion failed: " << expected \
-                                          << " != " << actual << std::endl,   \
-                                false)
-
-// Fixed test function with correct return type and logic
-bool testCreateCharacterWithNameAndHealth() {
-    Character character("Adventurer", 100);
-
-    bool nameCorrect =
-        ASSERT_EQ(std::string("Adventurer"), character.getName());
-    bool healthCorrect = ASSERT_EQ(100, character.getHealth());
-
-    return nameCorrect && healthCorrect;
 }
 
-bool testCharacterTakesDamage() {
-    Character character("Warrior", 100);
+// serialization
+std::string Character::serialize() const {
+    std::stringstream ss;
+    ss << name << '\n';
+    ss << level << '\n';
+    ss << experience << '\n';
 
-    character.takeDamage(30);
-    bool healthAfterDamage = ASSERT_EQ(70, character.getHealth());
+    ss << stats.size() << '\n';
 
-    character.takeDamage(50);
-    bool healthAfterMoreDamage = ASSERT_EQ(20, character.getHealth());
+    for (const auto& pair : stats) {
+        ss << pair.first << '\n';
+        ss << pair.second << '\n';
+    }
 
-    return healthAfterDamage && healthAfterMoreDamage;
+    ss << inventory.size() << '\n';
+
+    for (const auto& pair : inventory) {
+        ss << pair.first << '\n';
+        ss << pair.second << '\n';
+    }
+
+    ss << gear.size() << '\n';
+
+    for (const auto& pair : gear) {
+        ss << pair.first << '\n';
+        ss << pair.second << '\n';
+    }
+
+    return ss.str();
 }
 
-bool testHealthCannotBeBelowZero() {
-    Character character("Paladin", 50);
+Character Character::deserialize(const std::string& data) {
+    std::stringstream ss(data);
+    Character ch{};
 
-    character.takeDamage(70);  // Trying to take more damage than current health
-    bool healthAtZero = ASSERT_EQ(0, character.getHealth());
+    std::getline(ss, ch.name);
 
-    return healthAtZero;
-}
+    ss >> ch.level;
+    ss.ignore();
 
-// Test for character healing
-bool testCharacterCanHeal() {
-    Character character("Cleric", 60);
+    ss >> ch.experience;
+    ss.ignore();
 
-    character.takeDamage(30);
-    bool damagedHealth = ASSERT_EQ(30, character.getHealth());
+    size_t statsMapSize;
+    ss >> statsMapSize;
+    ss.ignore();
 
-    character.heal(20);
-    bool healedHealth = ASSERT_EQ(50, character.getHealth());
+    for (size_t i = 0; i < statsMapSize; i++) {
+        std::string key;
+        int value;
 
-    return damagedHealth && healedHealth;
-}
+        std::getline(ss, key);
+        ss >> value;
+        ss.ignore();
 
-// Test that health cannot exceed maximum health
-bool testHealthCannotExceedMaximum() {
-    Character character("Mage", 40);
+        ch.stats[key] = value;
+    }
 
-    character.heal(10);
-    bool initialHeal =
-        ASSERT_EQ(40, character.getHealth());  // Should remain at maximum
+    size_t inventoryMapSize;
+    ss >> inventoryMapSize;
+    ss.ignore();
 
-    character.takeDamage(15);
-    bool damagedHealth = ASSERT_EQ(25, character.getHealth());
+    for (size_t i = 0; i < inventoryMapSize; i++) {
+        std::string key;
+        int value;
 
-    character.heal(30);  // Trying to heal beyond maximum
-    bool healedHealth =
-        ASSERT_EQ(40, character.getHealth());  // Should only heal to maximum
+        std::getline(ss, key);
+        ss >> value;
+        ss.ignore();
 
-    return initialHeal && damagedHealth && healedHealth;
-}
+        ch.inventory[key] = value;
+    }
 
-// Test for character inventory
-bool testCharacterCanAddItemToInventory() {
-    Character character("Rogue", 60);
+    size_t gearMapSize;
+    ss >> gearMapSize;
+    ss.ignore();
 
-    character.addToInventory("Dagger");
-    character.addToInventory("Lockpick");
+    for (size_t i = 0; i < gearMapSize; i++) {
+        std::string key;
+        std::string value;
 
-    bool hasDagger = ASSERT_EQ(true, character.hasItem("Dagger"));
-    bool hasLockpick = ASSERT_EQ(true, character.hasItem("Lockpick"));
-    bool doesNotHaveSword = ASSERT_EQ(false, character.hasItem("Sword"));
+        std::getline(ss, key);
+        std::getline(ss, value);
+        ss.ignore();
 
-    bool correctItemCount = ASSERT_EQ(2, character.getInventoryCount());
+        ch.gear[key] = value;
+    }
 
-    return hasDagger && hasLockpick && doesNotHaveSword && correctItemCount;
-}
-
-// Test for character stats/attributes
-bool testCharacterHasStats() {
-    Character character("Warrior", 100);
-
-    character.setStat("Strength", 18);
-    character.setStat("Dexterity", 12);
-    character.setStat("Intelligence", 8);
-
-    bool strengthCorrect = ASSERT_EQ(18, character.getStat("Strength"));
-    bool dexterityCorrect = ASSERT_EQ(12, character.getStat("Dexterity"));
-    bool intelligenceCorrect = ASSERT_EQ(8, character.getStat("Intelligence"));
-    bool nonExistentStatIsZero = ASSERT_EQ(0, character.getStat("Charisma"));
-
-    return strengthCorrect && dexterityCorrect && intelligenceCorrect &&
-           nonExistentStatIsZero;
-}
-
-// Test equipment functionality
-bool testCharacterCanEquipItems() {
-    Character character("Fighter", 80);
-
-    // Items must be in inventory before equipping
-    character.addToInventory("Longsword");
-    character.addToInventory("Shield");
-    character.addToInventory("Plate Armor");
-
-    character.equip("Longsword", "Weapon");
-    character.equip("Shield", "Offhand");
-    character.equip("Plate Armor", "Armor");
-
-    bool weaponEquipped =
-        ASSERT_EQ("Longsword", character.getEquipped("Weapon"));
-    bool offhandEquipped =
-        ASSERT_EQ("Shield", character.getEquipped("Offhand"));
-    bool armorEquipped =
-        ASSERT_EQ("Plate Armor", character.getEquipped("Armor"));
-    bool emptySlotIsEmpty = ASSERT_EQ("", character.getEquipped("Helmet"));
-
-    return weaponEquipped && offhandEquipped && armorEquipped &&
-           emptySlotIsEmpty;
-}
-
-bool testCharacterCanAttackOthers() {
-    Character attacker("Berserker", 100);
-    Character defender("Guardian", 120);
-
-    attacker.setStat("Strength", 16);
-
-    // Basic attack does strength damage
-    attacker.attack(defender);
-    bool damageDealt = ASSERT_EQ(104, defender.getHealth());  // 120 - 16
-
-    return damageDealt;
-}
-
-// Test for weapon damage modifiers
-bool testWeaponDamageModifiers() {
-    Character attacker("Swordsman", 80);
-    Character defender("Target", 150);
-
-    attacker.setStat("Strength", 15);
-    attacker.addToInventory("Steel Sword");
-    attacker.setWeaponDamage("Steel Sword", 10);
-    attacker.equip("Steel Sword", "Weapon");
-
-    // Attack with weapon should do strength + weapon damage
-    attacker.attack(defender);
-    bool correctDamage =
-        ASSERT_EQ(125, defender.getHealth());  // 150 - (15 + 10)
-
-    return correctDamage;
-}
-
-// Test for character death
-bool testCharacterDeath() {
-    Character attacker("Assassin", 70);
-    Character victim("Civilian", 30);
-
-    attacker.setStat("Strength", 35);
-
-    attacker.attack(victim);
-    bool victimDied = ASSERT_EQ(true, victim.isDead());
-    bool attackerAlive = ASSERT_EQ(false, attacker.isDead());
-
-    return victimDied && attackerAlive;
-}
-
-// Test for character experience and leveling
-bool testCharacterExperienceAndLeveling() {
-    Character character("Adventurer", 100);
-
-    // Characters should start at level 1
-    bool startsAtLevelOne = ASSERT_EQ(1, character.getLevel());
-
-    // Gain some experience but not enough to level up
-    character.gainExperience(50);
-    bool hasCorrectXP = ASSERT_EQ(50, character.getExperience());
-    bool stillLevelOne = ASSERT_EQ(1, character.getLevel());
-
-    // Gain enough experience to level up (assume 100 XP per level)
-    character.gainExperience(60);
-    bool leveledUp = ASSERT_EQ(2, character.getLevel());
-    bool correctXPAfterLevel = ASSERT_EQ(
-        10,
-        character.getExperience());  // 110 total, 100 for level, 10 remaining
-
-    // Verify stats increase with leveling
-    bool healthIncreased =
-        ASSERT_EQ(110, character.getMaxHealth());  // +10 per level
-
-    return startsAtLevelOne && hasCorrectXP && stillLevelOne && leveledUp &&
-           correctXPAfterLevel && healthIncreased;
-}
-
-// Test for special abilities
-bool testCharacterSpecialAbilities() {
-    Character attacker("Wizard", 60);
-    Character target("Enemy", 100);
-
-    // Define a special ability
-    attacker.learnAbility("Fireball", [](Character& user, Character& target) {
-        int intelligence = user.getStat("Intelligence");
-        target.takeDamage(intelligence *
-                          2);  // Fireball does double intelligence as damage
-        return true;
-    });
-
-    attacker.setStat("Intelligence", 15);
-
-    // Use the ability
-    bool abilityUsed = attacker.useAbility("Fireball", target);
-    bool correctDamage = ASSERT_EQ(70, target.getHealth());  // 100 - (15 * 2)
-
-    // Try to use non-existent ability
-    bool nonExistentAbilityFails =
-        !attacker.useAbility("Lightning Bolt", target);
-    bool healthUnchanged =
-        ASSERT_EQ(70, target.getHealth());  // Should still be 70
-
-    return abilityUsed && correctDamage && nonExistentAbilityFails &&
-           healthUnchanged;
-}
-
-// Test for character classes
-bool testCharacterClasses() {
-    // Creating different classes of characters
-    Character warrior = Character::createWarrior("Brutus");
-    Character mage = Character::createMage("Merlin");
-    Character rogue = Character::createRogue("Shadow");
-
-    // Each class should have appropriate starting stats
-    bool warriorStrength = ASSERT_EQ(16, warrior.getStat("Strength"));
-    bool mageIntelligence = ASSERT_EQ(16, mage.getStat("Intelligence"));
-    bool rogueDexterity = ASSERT_EQ(16, rogue.getStat("Dexterity"));
-
-    // Each class should have appropriate starting equipment
-    bool warriorWeapon = ASSERT_EQ("Longsword", warrior.getEquipped("Weapon"));
-    bool mageWeapon = ASSERT_EQ("Staff", mage.getEquipped("Weapon"));
-    bool rogueWeapon = ASSERT_EQ("Dagger", rogue.getEquipped("Weapon"));
-
-    return warriorStrength && mageIntelligence && rogueDexterity &&
-           warriorWeapon && mageWeapon && rogueWeapon;
-}
-
-// Test for status effects
-bool testStatusEffects() {
-    Character target("Target", 100);
-    
-    // Apply a poison effect
-    target.applyStatusEffect("Poison", 3); // Apply poison for 3 turns
-    bool hasPoison = ASSERT_EQ(true, target.hasStatusEffect("Poison"));
-    
-    // Poison should deal damage each turn
-    target.processTurn();
-    bool poisonDamage1 = ASSERT_EQ(95, target.getHealth()); // 5 damage per turn
-    
-    target.processTurn();
-    bool poisonDamage2 = ASSERT_EQ(90, target.getHealth());
-    
-    // Last turn of poison
-    target.processTurn(); 
-    bool poisonDamage3 = ASSERT_EQ(85, target.getHealth());
-    
-    // Poison should expire after 3 turns
-    bool poisonExpired = ASSERT_EQ(false, target.hasStatusEffect("Poison"));
-    
-    // No more damage on next turn
-    target.processTurn();
-    bool noDamageAfterExpiry = ASSERT_EQ(85, target.getHealth());
-    
-    return hasPoison && poisonDamage1 && poisonDamage2 && 
-           poisonDamage3 && poisonExpired && noDamageAfterExpiry;
-}
-
-// Test for combat modifiers (like critical hits)
-bool testCombatModifiers() {
-    Character attacker("Attacker", 100);
-    Character defender("Defender", 100);
-    
-    attacker.setStat("Strength", 10);
-    
-    // Set critical hit rate to 100% for testing
-    attacker.setCriticalRate(1.0); // 100% chance
-    attacker.setCriticalMultiplier(2.0); // Double damage
-    
-    attacker.attack(defender);
-    // Normal damage would be 10, with crit it's 20
-    bool criticalHit = ASSERT_EQ(80, defender.getHealth());
-    
-    // Reset crit rate to 0
-    attacker.setCriticalRate(0.0);
-    attacker.attack(defender);
-    // Now normal damage of 10
-    bool normalHit = ASSERT_EQ(70, defender.getHealth());
-    
-    return criticalHit && normalHit;
-}
-
-// Test for stackable inventory items
-bool testStackableInventory() {
-    Character character("Adventurer", 100);
-    
-    // Add single items
-    character.addToInventory("Gold Coin", 5);
-    character.addToInventory("Health Potion", 2);
-    
-    bool hasGoldCoins = ASSERT_EQ(5, character.getItemCount("Gold Coin"));
-    bool hasHealthPotions = ASSERT_EQ(2, character.getItemCount("Health Potion"));
-    
-    // Add more of the same item
-    character.addToInventory("Gold Coin", 10);
-    bool stackedGoldCoins = ASSERT_EQ(15, character.getItemCount("Gold Coin"));
-    
-    // Use items from stack
-    character.useItem("Health Potion", 1);
-    bool usedPotion = ASSERT_EQ(1, character.getItemCount("Health Potion"));
-    
-    // Try to use more than available
-    bool cantUseMore = !character.useItem("Health Potion", 2); // Should return false
-    bool stillHasOne = ASSERT_EQ(1, character.getItemCount("Health Potion"));
-    
-    return hasGoldCoins && hasHealthPotions && stackedGoldCoins && 
-           usedPotion && cantUseMore && stillHasOne;
-}
-
-// Test for character joining/leaving parties
-bool testPartyMechanics() {
-    // Create a party
-    Party adventuringParty("Heroes of the Realm");
-    
-    // Create some characters
-    Character warrior = Character::createWarrior("Thordak");
-    Character healer = Character::createMage("Ellaria");
-    Character scout = Character::createRogue("Vex");
-    
-    // Add characters to party
-    adventuringParty.addMember(warrior);
-    adventuringParty.addMember(healer);
-    
-    bool correctSize = ASSERT_EQ(2, adventuringParty.getMemberCount());
-    bool containsWarrior = ASSERT_EQ(true, adventuringParty.hasMember("Thordak"));
-    bool containsHealer = ASSERT_EQ(true, adventuringParty.hasMember("Ellaria"));
-    bool doesNotContainScout = ASSERT_EQ(false, adventuringParty.hasMember("Vex"));
-    
-    // Add the scout later
-    adventuringParty.addMember(scout);
-    bool scoutAdded = ASSERT_EQ(true, adventuringParty.hasMember("Vex"));
-    bool sizeAfterAddition = ASSERT_EQ(3, adventuringParty.getMemberCount());
-    
-    // Remove a member
-    adventuringParty.removeMember("Ellaria");
-    bool healerRemoved = ASSERT_EQ(false, adventuringParty.hasMember("Ellaria"));
-    bool sizeAfterRemoval = ASSERT_EQ(2, adventuringParty.getMemberCount());
-    
-    return correctSize && containsWarrior && containsHealer && doesNotContainScout && 
-           scoutAdded && sizeAfterAddition && healerRemoved && sizeAfterRemoval;
-}
-
-// Test for serialization and deserialization (save/load)
-bool testCharacterSerialization() {
-    // Create a character with various properties
-    Character original = Character::createWarrior("Goliath");
-    original.setStat("Strength", 20);
-    original.setStat("Constitution", 16);
-    original.addToInventory("Health Potion", 3);
-    original.addToInventory("Gold", 150);
-    original.setWeaponDamage("Longsword", 12);
-    original.gainExperience(250); // Level 3, 50 XP
-    
-    // Serialize to string
-    std::string serialized = original.serialize();
-    
-    // Create a new character from serialized string
-    Character loaded = Character::deserialize(serialized);
-    
-    // Verify all properties were preserved
-    bool namePreserved = ASSERT_EQ("Goliath", loaded.getName());
-    bool levelPreserved = ASSERT_EQ(3, loaded.getLevel());
-    bool xpPreserved = ASSERT_EQ(50, loaded.getExperience());
-    bool strengthPreserved = ASSERT_EQ(20, loaded.getStat("Strength"));
-    bool constitutionPreserved = ASSERT_EQ(16, loaded.getStat("Constitution"));
-    bool inventoryCountPreserved = ASSERT_EQ(3, loaded.getInventoryCount());
-    bool potionCountPreserved = ASSERT_EQ(3, loaded.getItemCount("Health Potion"));
-    bool goldCountPreserved = ASSERT_EQ(150, loaded.getItemCount("Gold"));
-    bool weaponPreserved = ASSERT_EQ("Longsword", loaded.getEquipped("Weapon"));
-    
-    return namePreserved && levelPreserved && xpPreserved && strengthPreserved && 
-           constitutionPreserved && inventoryCountPreserved && potionCountPreserved && 
-           goldCountPreserved && weaponPreserved;
-}
-
-bool testCompleteBattleScenario() {
-    // Create a party of adventurers
-    Party heroes("Heroes of Light");
-    
-    Character warrior = Character::createWarrior("Hector");
-    Character mage = Character::createMage("Lilith");
-    Character rogue = Character::createRogue("Garrett");
-    
-    // Give them some equipment and abilities
-    warrior.setWeaponDamage("Longsword", 15);
-    warrior.setStat("Strength", 20);
-    warrior.setCriticalRate(0.2);
-    warrior.setCriticalMultiplier(1.5);
-    
-    mage.setStat("Intelligence", 22);
-    mage.learnAbility("Fireball", [](Character& caster, Character& target) {
-        int damage = caster.getStat("Intelligence") * 2;
-        std::cout << "damage: " << damage << '\n';
-
-        target.takeDamage(damage);
-        return true;
-    });
-    mage.learnAbility("Heal", [](Character& caster, Character& target) {
-        int healing = caster.getStat("Intelligence");
-        target.heal(healing);
-        return true;
-    });
-    
-    rogue.setWeaponDamage("Dagger", 8);
-    rogue.setStat("Dexterity", 18);
-    rogue.learnAbility("Poison Strike", [](Character& caster, Character& target) {
-        target.takeDamage(caster.getStat("Dexterity"));
-        target.applyStatusEffect("Poison", 3);
-        return true;
-    });
-    
-    // Create enemy
-    Character boss("Dragon", 300);
-    boss.setStat("Strength", 25);
-    boss.learnAbility("Fire Breath", [](Character& caster, Character& target) {
-        target.takeDamage(30);
-        return true;
-    });
-    
-    // Battle simulation
-    // Round 1
-    warrior.attack(boss); // Warrior attacks
-    bool round1DamageToEnemy = ASSERT_EQ(300 - 35, boss.getHealth()); // Strength 20 + Weapon 15
-
-    boss.useAbility("Fire Breath", warrior); // Boss attacks warrior
-    bool round1DamageToHero = ASSERT_EQ(70, warrior.getHealth()); // 100 - 30
-    
-    // Round 2
-    mage.useAbility("Fireball", boss); // Mage casts fireball
-    bool round2DamageToEnemy = ASSERT_EQ(265 - 44, boss.getHealth()); // 235 - (Intelligence 22 * 2)
-    
-    rogue.useAbility("Poison Strike", boss); // Rogue uses poison strike
-    bool round2PoisonApplied = ASSERT_EQ(true, boss.hasStatusEffect("Poison"));
-    bool round2DamageFromPoison = ASSERT_EQ(221 - 18, boss.getHealth()); // 221 - Dexterity 18
-    
-    // Process turn (poison damage)
-    boss.processTurn();
-    bool round2PoisonEffect = ASSERT_EQ(203 - 5, boss.getHealth()); // 203 - 5 poison damage
-    
-    // Round 3
-    mage.useAbility("Heal", warrior); // Mage heals warrior
-    bool round3Healing = ASSERT_EQ(92, warrior.getHealth()); // 70 + 22
-    
-    return round1DamageToEnemy && round1DamageToHero && 
-           round2DamageToEnemy && round2PoisonApplied && round2DamageFromPoison && 
-           round2PoisonEffect && round3Healing;
-}
-
-int main() {
-    TestRunner::runTest("CreateCharacterWithNameAndHealth",
-                        testCreateCharacterWithNameAndHealth);
-    TestRunner::runTest("CharacterTakesDamage", testCharacterTakesDamage);
-    TestRunner::runTest("HealthCannotBeBelowZero", testHealthCannotBeBelowZero);
-    TestRunner::runTest("CharacterCanHeal", testCharacterCanHeal);
-    TestRunner::runTest("HealthCannotExceedMaximum",
-                        testHealthCannotExceedMaximum);
-    TestRunner::runTest("CharacterCanAddItemToInventory",
-                        testCharacterCanAddItemToInventory);
-    TestRunner::runTest("CharacterHasStats", testCharacterHasStats);
-    TestRunner::runTest("CharacterCanEquipItems", testCharacterCanEquipItems);
-    TestRunner::runTest("CharacterCanAttackOthers",
-                        testCharacterCanAttackOthers);
-    TestRunner::runTest("WeaponDamageModifiers", testWeaponDamageModifiers);
-    TestRunner::runTest("CharacterDeath", testCharacterDeath);
-
-    TestRunner::runTest("CharacterExperienceAndLeveling",
-                        testCharacterExperienceAndLeveling);
-    TestRunner::runTest("CharacterSpecialAbilities",
-                        testCharacterSpecialAbilities);
-    TestRunner::runTest("CharacterClasses", testCharacterClasses);
-
-    TestRunner::runTest("StatusEffects", testStatusEffects);
-    TestRunner::runTest("CombatModifiers", testCombatModifiers);
-    TestRunner::runTest("StackableInventory", testStackableInventory);
-
-    TestRunner::runTest("PartyMechanics", testPartyMechanics);
-    TestRunner::runTest("CharacterSerialization", testCharacterSerialization);
-
-    TestRunner::runTest("CompleteBattleScenario", testCompleteBattleScenario);
-
-    return 0;
+    return ch;
 }
